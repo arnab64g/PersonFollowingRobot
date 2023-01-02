@@ -20,10 +20,6 @@ ARUCO_DICT = {
     "DICT_7X7_250": cv2.aruco.DICT_7X7_250,
     "DICT_7X7_1000": cv2.aruco.DICT_7X7_1000,
     "DICT_ARUCO_ORIGINAL": cv2.aruco.DICT_ARUCO_ORIGINAL,
-    "DICT_APRILTAG_16h5": cv2.aruco.DICT_APRILTAG_16h5,
-    "DICT_APRILTAG_25h9": cv2.aruco.DICT_APRILTAG_25h9,
-    "DICT_APRILTAG_36h10": cv2.aruco.DICT_APRILTAG_36h10,
-    "DICT_APRILTAG_36h11": cv2.aruco.DICT_APRILTAG_36h11
 }
 
 
@@ -64,10 +60,10 @@ def aruco_display(corners, ids, image):
 
 
 def webcam_read():
-    aruco_type = "DICT_4X4_1000"
+    aruco_type = "DICT_6X6_1000"
     aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT[aruco_type])
     aruco_params = cv2.aruco.DetectorParameters_create()
-    vid = cv2.VideoCapture('http://192.168.0.102:8080/video')
+    vid = cv2.VideoCapture(0)
     
     while vid.isOpened():
         ret, img = vid.read()
