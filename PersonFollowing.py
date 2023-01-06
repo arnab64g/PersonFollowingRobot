@@ -2,7 +2,13 @@
 
 import cv2
 import rospy
-import math
+import Calculate
+import ArUcoDict
+import Draw
+import DisplayText
+import Message
+import Turtlebot3_Model
+import StringM
 from geometry_msgs.msg import Twist
 
 import sys, select, os
@@ -22,50 +28,8 @@ LIN_VEL_STEP_SIZE = 0.01
 ANG_VEL_STEP_SIZE = 0.1
 
 
-e = """
-Communications Failed
-"""
+def aruco_display(corners, ids, image, w, targetMarker):
 
-
-ARUCO_DICT = {
-    "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
-    "DICT_4X4_100": cv2.aruco.DICT_4X4_100,
-    "DICT_4X4_250": cv2.aruco.DICT_4X4_250,
-    "DICT_4X4_1000": cv2.aruco.DICT_4X4_1000,
-    "DICT_5X5_50": cv2.aruco.DICT_5X5_50,
-    "DICT_5X5_100": cv2.aruco.DICT_5X5_100,
-    "DICT_5X5_250": cv2.aruco.DICT_5X5_250,
-    "DICT_5X5_1000": cv2.aruco.DICT_5X5_1000,
-    "DICT_6X6_50": cv2.aruco.DICT_6X6_50,
-    "DICT_6X6_100": cv2.aruco.DICT_6X6_100,
-    "DICT_6X6_250": cv2.aruco.DICT_6X6_250,
-    "DICT_6X6_1000": cv2.aruco.DICT_6X6_1000,
-    "DICT_7X7_50": cv2.aruco.DICT_7X7_50,
-    "DICT_7X7_100": cv2.aruco.DICT_7X7_100,
-    "DICT_7X7_250": cv2.aruco.DICT_7X7_250,
-    "DICT_7X7_1000": cv2.aruco.DICT_7X7_1000,
-    "DICT_ARUCO_ORIGINAL": cv2.aruco.DICT_ARUCO_ORIGINAL
-}
-
-
-def get_max_size(top_left, top_right, bottom_left, bottom_right):
-    a = math.sqrt(pow(top_left[0] - top_right[0], 2) + pow(top_left[1] - top_right[1], 2))
-    b = math.sqrt(pow(bottom_left[0] - bottom_right[0], 2) + pow(bottom_left[1] - bottom_right[1], 2))
-    c = math.sqrt(pow(top_left[0] - bottom_left[0], 2) + pow(top_left[1] - bottom_left[1], 2))
-    d = math.sqrt(pow(top_right[0] - bottom_right[0], 2) + pow(top_right[1] - bottom_right[1], 2))
-    ar = [int(a), int(b), int(c), int(d)]
-    ar.sort()
-    return ar[3]
-
-
-def get_lef_line_right_line(width):
-    left_line = (width * 7) / 16
-    right_line = (width * 9) / 16
-
-    return left_line, right_line
-
-
-def aruco_display(corners, ids, image, w):
     c_x = 0
     c_y = 0
 
@@ -82,35 +46,29 @@ def aruco_display(corners, ids, image, w):
             bottom_left = (int(bottom_left[0]), int(bottom_left[1]))
             top_left = (int(top_left[0]), int(top_left[1]))
 
-            maxl = get_max_size(top_left, top_right, bottom_left, bottom_right)
-    
-            cv2.line(image, top_left, top_right, (0, 255, 0), 2)
-            cv2.line(image, top_right, bottom_right, (0, 255, 0), 2)
-            cv2.line(image, bottom_right, bottom_left, (0, 255, 0), 2)
-            cv2.line(image, bottom_left, top_left, (0, 255, 0), 2)
-    
-            c_x = int((top_left[0] + bottom_right[0]) / 2.0)
-            c_y = int((top_left[1] + bottom_right[1]) / 2.0)
-    
-            cv2.circle(image, (c_x, c_y), 4, (0, 0, 255), -1)
+            maxl = Calculate.get_max_size(top_left, top_right, bottom_left, bottom_right)
 
-            cv2.putText(image, str(markerID), (top_left[0], top_left[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                        (0, 255, 0), 2)
+            Draw.MarkerBorder(image, top_left, top_right, bottom_left, bottom_right)
+    
+            c_x = Calculate.get_center(top_left[0], bottom_right[0]) 
+            c_y = Calculate.get_center(top_left[1], bottom_right[1])
+    
+            Draw.MarkerCenter(image, c_x, c_y)
 
-            cv2.putText(image, str(w), (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                        (0, 255, 0), 2)
+            DisplayText.MarkerID(image, markerID, top_left)
+            DisplayText.ImageText(image, w)
+            
 
             print("[Inference] ArUco marker ID: {}".format(markerID))
+
+            if targetMarker != markerID:
+
+                return image, 0, 0, 0, markerID
             
             return image, c_x, c_y, maxl, markerID
     else: 
 
-        return image, 0, 0, 0, 0
-
-
-def vels(target_linear_vel, target_angular_vel):
-
-    return "currently:\tlinear vel %s\t angular vel %s " % (target_linear_vel,target_angular_vel)
+        return image, 0, 0, 0, -1
 
 
 def makeSimpleProfile(output, input, slop):
@@ -139,9 +97,9 @@ def constrain(input, low, high):
 
 def checkLinearLimitVelocity(vel):
 
-    if turtlebot3_model == "burger":
+    if turtlebot3_model == Turtlebot3_Model.turtlebot3_burger:
       vel = constrain(vel, -BURGER_MAX_LIN_VEL, BURGER_MAX_LIN_VEL)
-    elif turtlebot3_model == "waffle" or turtlebot3_model == "waffle_pi":
+    elif turtlebot3_model == Turtlebot3_Model.turtlebot3_waffle or turtlebot3_model == Turtlebot3_Model.turtlebot3_waffle_pi:
       vel = constrain(vel, -WAFFLE_MAX_LIN_VEL, WAFFLE_MAX_LIN_VEL)
     else:
       vel = constrain(vel, -BURGER_MAX_LIN_VEL, BURGER_MAX_LIN_VEL)
@@ -151,9 +109,9 @@ def checkLinearLimitVelocity(vel):
 
 def checkAngularLimitVelocity(vel):
 
-    if turtlebot3_model == "burger":
+    if turtlebot3_model == Turtlebot3_Model.turtlebot3_burger:
       vel = constrain(vel, -BURGER_MAX_ANG_VEL, BURGER_MAX_ANG_VEL)
-    elif turtlebot3_model == "waffle" or turtlebot3_model == "waffle_pi":
+    elif turtlebot3_model == Turtlebot3_Model.turtlebot3_waffle or turtlebot3_model == Turtlebot3_Model.turtlebot3_waffle_pi:
       vel = constrain(vel, -WAFFLE_MAX_ANG_VEL, WAFFLE_MAX_ANG_VEL)
     else:
       vel = constrain(vel, -BURGER_MAX_ANG_VEL, BURGER_MAX_ANG_VEL)
@@ -170,7 +128,7 @@ if __name__=="__main__":
 
     pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
 
-    turtlebot3_model = rospy.get_param("model", "burger")
+    turtlebot3_model = rospy.get_param("model", Turtlebot3_Model.turtlebot3_burger)
 
     status = 0
 
@@ -179,34 +137,33 @@ if __name__=="__main__":
     control_linear_vel  = 0.0
     control_angular_vel = 0.0
 
-    aruco_type = "DICT_6X6_100"
+    aruco_type = "DICT_6X6_1000"
 
-    aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT[aruco_type])
+    aruco_dict = cv2.aruco.Dictionary_get(ArUcoDict.ARUCO_DICT[aruco_type])
     aruco_params = cv2.aruco.DetectorParameters_create()
 
     vid = cv2.VideoCapture('http://192.168.1.100:8080/video')
 
     waiting_time = 0
 
-    marker_id = int(input('Enter Marker ID: '))
+    marker_id = int(input("Enter Marker ID: "))
 
     try:
-        
         while not rospy.is_shutdown():
             ret, img = vid.read()
 
             h, w, d = img.shape
 
-            left_line, right_line = get_lef_line_right_line(w)
+            left_line, right_line = Calculate.get_lef_line_right_line(w)
             
             corners, ids, rejected = cv2.aruco.detectMarkers(img, aruco_dict, parameters=aruco_params)
 
-            detected_markers, x, y, l, markerId = aruco_display(corners, ids, img, w)
+            detected_markers, x, y, l, markerId = aruco_display(corners, ids, img, w, marker_id)
 
             cv2.imshow('WebCam', detected_markers)
 
             if cv2.waitKey(10) & 0xFF == ord('q'):
-              break
+                break
 
             if  marker_id != markerId: 
 
@@ -248,9 +205,9 @@ if __name__=="__main__":
                 target_angular_vel  = 0.0
                 control_angular_vel = 0.0
             
-            print(vels(target_linear_vel,target_angular_vel))
+            print( StringM.vels(target_linear_vel,target_angular_vel))
 
-            print('Target Marker ID: ', marker_id, ', Marker ID: ', markerId)
+            print("Target Marker ID: ", marker_id, ", Marker ID: ", markerId)
             
             if status == 20 :
                 status = 0
@@ -267,7 +224,7 @@ if __name__=="__main__":
             pub.publish(twist)
 
     except:
-        print(e)
+        print(Message.e)
 
     finally:
         twist = Twist()
